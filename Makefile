@@ -2,7 +2,7 @@ CC=gcc
 CFLAGS=-std=c89 -Wall -Wextra -Wno-unused-parameter
 CFLAGS+=$(shell pkg-config prs --cflags)
 LDFLAGS=$(shell pkg-config prs --libs)
-TARGET=prsed
+TARGET=ed
 
 SRCDIR=src
 BINDIR=bin
