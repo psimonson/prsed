@@ -1,10 +1,28 @@
+/**
+ * @file main.c
+ * @author Philip R. Simonson
+ * @date 01/25/2020
+ * @brief Simple text editor written in pure C.
+ *************************************************************************
+ */
+
+#ifdef __linux
 #define _GNU_SOURCE
+#elif __unix >= 1
+#if defined(__FreeBSD__) || defined(__OpenBSD__)
+#define _BSD_SOURCE
+#else
+#define _GNU_SOURCE
+#endif
+#endif
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <ctype.h>
 #include <errno.h>
 #include <sys/ioctl.h>
+#include <sys/types.h>
 #include <termios.h>
 #include <unistd.h>
 
@@ -24,11 +42,18 @@ enum {
 	PAGE_UP,
 	PAGE_DOWN
 };
+/* Editor row structure */
+typedef struct erow {
+	int size;
+	char *data;
+} erow;
 /* Editor config structure */
 struct editor_config {
 	int cx, cy;
 	int screen_rows;
 	int screen_cols;
+	int num_rows;
+	erow *row;
 	struct termios orig_termios;
 };
 /* Editor config definition */
@@ -106,6 +131,44 @@ int get_window_size(int *rows, int *cols)
 		return 0;
 	}
 }
+/* Append row to string.
+ */
+static void editor_append_row(char *s, size_t len)
+{
+	int at = e.num_rows;
+	erow *new;
+	char *str;
+	str = malloc(len+1);
+	if(str == NULL) return;
+	new = realloc(e.row, sizeof(erow)*(e.num_rows+1));
+	if(new == NULL) return;
+	e.row = new;
+	e.row[at].size = len;
+	e.row[at].data = str;
+	memcpy(e.row[at].data, s, len);
+	e.row[at].data[len] = '\0';
+	e.num_rows++;
+}
+/* Open given 'filename' in editor.
+ */
+void editor_open(const char *filename)
+{
+	char *line = NULL;
+	size_t line_cap = 0;
+	ssize_t line_len;
+	FILE *fp;
+
+	fp = fopen(filename, "r");
+	if(fp == NULL) die("editor_open()");
+	while((line_len = getline(&line, &line_cap, fp)) > 0) {
+		while(line_len > 0 && (line[line_len-1] == '\n' ||
+				       line[line_len-1] == '\r'))
+			line_len--;
+		editor_append_row(line, line_len);
+	}
+	free(line);
+	fclose(fp);
+}
 /* Structure for append buffer. */
 struct abuf {
 	char *b;
@@ -135,23 +198,29 @@ void editor_draw_rows(struct abuf *ab)
 {
 	int y;
 	for(y = 0; y < e.screen_rows; y++) {
-		if(y == e.screen_rows/3) {
-			char welcome[80];
-			int welcome_len;
-			int padding;
-			welcome_len = snprintf(welcome, sizeof(welcome),
-				"PRS Edit -- Version %s", PRSED_VERSION);
-			if(welcome_len > e.screen_cols)
-				welcome_len = e.screen_cols;
-			padding = (e.screen_cols-welcome_len)/2;
-			if(padding != 0) {
+		if(y >= e.num_rows) {
+			if(e.num_rows == 0 && y == e.screen_rows/3) {
+				char welcome[80];
+				int welcome_len;
+				int padding;
+				welcome_len = snprintf(welcome, sizeof(welcome),
+					"PRS Edit -- Version %s", PRSED_VERSION);
+				if(welcome_len > e.screen_cols)
+					welcome_len = e.screen_cols;
+				padding = (e.screen_cols-welcome_len)/2;
+				if(padding != 0) {
+					ab_append(ab, "~", 1);
+					padding--;
+				}
+				while(padding-- != 0) ab_append(ab, " ", 1);
+				ab_append(ab, welcome, welcome_len);
+			} else {
 				ab_append(ab, "~", 1);
-				padding--;
 			}
-			while(padding-- != 0) ab_append(ab, " ", 1);
-			ab_append(ab, welcome, welcome_len);
 		} else {
-			ab_append(ab, "~", 1);
+			int len = e.row[y].size;
+			if(len > e.screen_cols) len = e.screen_cols;
+			ab_append(ab, e.row[y].data, len);
 		}
 
 		ab_append(ab, "\x1b[K", 3);
@@ -294,18 +363,28 @@ void editor_process_key() {
  */
 void init_editor()
 {
+	/* setup variables for startup */
 	e.cx = 0;
 	e.cy = 0;
+	e.num_rows = 0;
+	e.row = NULL;
 
 	if(get_window_size(&e.screen_rows, &e.screen_cols) < 0)
 		die("get_window_size");
 }
 /* Simple Text Editor (prsed).
  */
-int main()
+int main(int argc, char **argv)
 {
 	enable_raw();
 	init_editor();
+	if(argc > 2) {
+		fprintf(stderr, "Usage: %s [filename.ext]\n", argv[0]);
+		return 1;
+	}
+	if(argc == 2) {
+		editor_open(argv[1]);
+	}
 	while(1) {
 		editor_refresh_screen();
 		editor_process_key();
