@@ -13,7 +13,7 @@ VERSION=0.1
 SOURCES=$(wildcard $(SRCDIR)/*.c)
 OBJECTS=$(subst $(SRCDIR),$(OBJDIR),$(SOURCES:.c=.c.o))
 
-.PHONY: all mkdirs dist dist-clean clean
+.PHONY: all mkdirs dist dist-clean install clean
 all: mkdirs $(BINDIR)/$(TARGET)
 
 $(OBJDIR)/%.c.o: $(SRCDIR)/%.c
@@ -31,6 +31,10 @@ dist: dist-clean
 
 dist-clean: clean
 	rm -rf bin obj
+
+install:
+	mkdir -p $(DESTDIR)/$(PREFIX)/bin
+	install $(BINDIR)/$(TARGET) $(DESTDIR)/$(PREFIX)/bin/$(TARGET)
 
 clean:
 	rm -f *~ $(OBJECTS) $(BINDIR)/$(TARGET)
