@@ -18,6 +18,8 @@ void init_editor();
 void editor_open(const char *filename);
 /* Refresh screen for editor. */
 void editor_refresh_screen();
+/* Set status message. */
+void editor_set_status(const char *fmt, ...);
 /* Process input from user. */
 void editor_process_key();
 

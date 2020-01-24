@@ -19,15 +19,22 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stdarg.h>
 #include <ctype.h>
 #include <errno.h>
+#include <time.h>
 #include <sys/ioctl.h>
 #include <sys/types.h>
 #include <termios.h>
 #include <unistd.h>
 
+/* Defines to convert integers into strings */
+#define VAR(x) #x
+#define STR(x) VAR(x)
 /* Editor version */
-#define PRSED_VERSION "1.0"
+#define PRSED_MAJOR 1
+#define PRSED_MINOR 0
+#define PRSED_VERSION STR(PRSED_MAJOR) "." STR(PRSED_MINOR)
 /* Editor tab stop */
 #define PRSED_TAB_STOP 4
 /* Control+k macro */
@@ -54,12 +61,16 @@ typedef struct erow {
 /* Editor config structure */
 struct editor_config {
 	int cx, cy;
+	int rx;
 	int row_off;
 	int col_off;
 	int screen_rows;
 	int screen_cols;
 	int num_rows;
 	erow *row;
+	char *filename;
+	char status[80];
+	time_t status_time;
 	struct termios orig_termios;
 };
 /* Editor config definition */
@@ -68,7 +79,7 @@ struct editor_config e;
  */
 void die(const char *msg)
 {
-	write(STDOUT_FILENO, "\x1b[0m", 4);
+	write(STDOUT_FILENO, "\x1b[m", 3);
 	write(STDOUT_FILENO, "\x1b[2J", 4);
 	write(STDOUT_FILENO, "\x1b[H", 3);
 	perror(msg);
@@ -189,6 +200,8 @@ void editor_open(const char *filename)
 	ssize_t line_len;
 	FILE *fp;
 
+	free(e.filename);
+	e.filename = strdup(filename);
 	fp = fopen(filename, "r");
 	if(fp == NULL) die("editor_open()");
 	while((line_len = getline(&line, &line_cap, fp)) > 0) {
@@ -257,15 +270,32 @@ void editor_draw_rows(struct abuf *ab)
 		}
 
 		ab_append(ab, "\x1b[K", 3);
-		if(y < e.screen_rows-1) {
-			ab_append(ab, "\r\n", 2);
-		}
+		ab_append(ab, "\r\n", 2);
 	}
+}
+/* Calculate render index from character index.
+ */
+int editor_row_cx_to_rx(erow *row, int cx)
+{
+	int i, rx = 0;
+	for(i = 0; i < cx; i++) {
+		if(row->data[i] == '\t') {
+			rx += (PRSED_TAB_STOP-1)-(rx % PRSED_TAB_STOP);
+		}
+		rx++;
+	}
+	return rx;
 }
 /* Scroll the editor screen through the file.
  */
 void editor_scroll()
 {
+	/* Handle tab stops */
+	e.rx = 0;
+	if(e.cy < e.num_rows) {
+		e.rx = editor_row_cx_to_rx(&e.row[e.cy], e.cx);
+	}
+
 	/* vertical scrolling */
 	if(e.cy < e.row_off) {
 		e.row_off = e.cy;
@@ -281,6 +311,48 @@ void editor_scroll()
 		e.col_off = e.cx-e.screen_cols+1;
 	}
 }
+/* Draw a status bar at the bottom of the screen.
+ */
+void editor_draw_status(struct abuf *ab)
+{
+	char status[80], rstatus[80];
+	int len = 0, rlen = 0;
+	ab_append(ab, "\x1b[7m", 4);
+	len = snprintf(status, sizeof(status), "%.20s - %d lines",
+	  e.filename ? e.filename : "[No Name]", e.num_rows);
+	rlen = snprintf(rstatus, sizeof(rstatus), "%d/%d",
+		(e.num_rows > 0) ? e.cy+1 : e.cy, e.num_rows);
+	if(len > e.screen_cols) len = e.screen_cols;
+	ab_append(ab, status, len);
+	while(len < e.screen_cols) {
+		if(e.screen_cols-len == rlen) {
+			ab_append(ab, rstatus, rlen);
+			break;
+		} else {
+			ab_append(ab, " ", 1);
+			len++;
+		}
+	}
+	ab_append(ab, "\x1b[m", 3);
+	ab_append(ab, "\r\n", 2);
+}
+/* Draws the message bar on the screen.
+ */
+void editor_draw_message(struct abuf *ab)
+{
+	int len = strlen(e.status);
+	ab_append(ab, "\x1b[30;32m", 8);
+	ab_append(ab, "\x1b[K", 3);
+	if(len > e.screen_cols) len = e.screen_cols;
+	if(len > 0 && time(NULL)-e.status_time < 5) {
+		ab_append(ab, e.status, len);
+		while(len < e.screen_cols) {
+			ab_append(ab, " ", 1);
+			len++;
+		}
+		ab_append(ab, "\x1b[m", 3);
+	}
+}
 /* Clear the screen.
  */
 void editor_refresh_screen()
@@ -292,12 +364,24 @@ void editor_refresh_screen()
 	ab_append(&ab, "\x1b[?25l", 6);
 	ab_append(&ab, "\x1b[H", 3);
 	editor_draw_rows(&ab);
+	editor_draw_status(&ab);
+	editor_draw_message(&ab);
 	snprintf(buf, sizeof(buf), "\x1b[%d;%dH",
-			(e.cy-e.row_off)+1, (e.cx-e.col_off)+1);
+			(e.cy-e.row_off)+1, (e.rx-e.col_off)+1);
 	ab_append(&ab, buf, strlen(buf));
 	ab_append(&ab, "\x1b[?25h", 6);
 	write(STDOUT_FILENO, ab.b, ab.len);
 	ab_free(&ab);
+}
+/* Draw a status bar to display common hot keys.
+ */
+void editor_set_status(const char *fmt, ...)
+{
+	va_list ap;
+	va_start(ap, fmt);
+	vsnprintf(e.status, sizeof(e.status), fmt, ap);
+	va_end(ap);
+	e.status_time = time(NULL);
 }
 /* Read input from user.
  */
@@ -402,7 +486,7 @@ void editor_process_key() {
 
 	switch(c) {
 	case CTRL_KEY('q'):
-		write(STDOUT_FILENO, "\x1b[0m", 4);
+		write(STDOUT_FILENO, "\x1b[m", 3);
 		write(STDOUT_FILENO, "\x1b[2J", 4);
 		write(STDOUT_FILENO, "\x1b[H", 3);
 		exit(0);
@@ -411,11 +495,21 @@ void editor_process_key() {
 		e.cx = 0;
 	break;
 	case END_KEY:
-		e.cx = e.screen_cols-1;
+		if(e.cy < e.num_rows)
+			e.cx = e.row[e.cy].size;
 	break;
 	case PAGE_UP:
 	case PAGE_DOWN: {
-		int times = e.screen_rows;
+		int times;
+
+		if(c == PAGE_UP) {
+			e.cy = e.row_off;
+		} else if(c == PAGE_DOWN) {
+			e.cy = e.row_off+e.screen_rows-1;
+			if(e.cy > e.num_rows) e.cy = e.num_rows;
+		}
+
+		times = e.screen_rows;
 		while(times-- != 0)
 			editor_move_cursor(c == PAGE_UP ? ARROW_UP : ARROW_DOWN);
 	} break;
@@ -436,11 +530,16 @@ void init_editor()
 	/* setup variables for startup */
 	e.cx = 0;
 	e.cy = 0;
+	e.rx = 0;
 	e.row_off = 0;
 	e.col_off = 0;
 	e.num_rows = 0;
 	e.row = NULL;
+	e.filename = NULL;
+	e.status[0] = '\0';
+	e.status_time = 0;
 
 	if(get_window_size(&e.screen_rows, &e.screen_cols) < 0)
 		die("get_window_size");
+	e.screen_rows -= 2;
 }
