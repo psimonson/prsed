@@ -4,6 +4,9 @@ CFLAGS+=$(shell pkg-config prs --cflags)
 LDFLAGS=$(shell pkg-config prs --libs)
 TARGET=prsed
 
+DESTDIR=
+PREFIX=usr/local
+
 SRCDIR=src
 BINDIR=bin
 OBJDIR=obj
