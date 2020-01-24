@@ -298,6 +298,27 @@ void editor_save()
 	free(buf);
 	editor_set_status("Can't save! I/O error: %s", strerror(errno));
 }
+/* Search for string in current text.
+ */
+void editor_search()
+{
+	extern int editor_row_rx_to_cx(erow *row, int rx);
+	char *query = editor_prompt("Search (ESC to cancel): %s");
+	if(query == NULL) return;
+	{
+		int i;
+		for(i = 0; i < e.num_rows; i++) {
+			erow *row = &e.row[i];
+			char *match = strstr(row->render, query);
+			if(match != NULL) {
+				e.cy = i;
+				e.cx = editor_row_rx_to_cx(row, match-row->render);
+				e.row_off = e.num_rows;
+				break;
+			}
+		}
+	}
+}
 /* Free row after deletion.
  */
 void editor_free_row(erow *row)
@@ -440,11 +461,25 @@ int editor_row_cx_to_rx(erow *row, int cx)
 	int i, rx = 0;
 	for(i = 0; i < cx; i++) {
 		if(row->data[i] == '\t') {
-			rx += (PRSED_TAB_STOP-1)-(rx % PRSED_TAB_STOP);
+			rx += (PRSED_TAB_STOP - 1)-(rx % PRSED_TAB_STOP);
 		}
 		rx++;
 	}
 	return rx;
+}
+/* Calculate render index to character index.
+ */
+int editor_row_rx_to_cx(erow *row, int rx)
+{
+	int cx, cur_rx = 0;
+	for(cx = 0; cx < row->size; cx++) {
+		if(row->data[cx] == '\t') {
+			cur_rx += (PRSED_TAB_STOP - 1)-(cur_rx % PRSED_TAB_STOP);
+		}
+		cur_rx++;
+		if(cur_rx > rx) return cx;
+	}
+	return cx;
 }
 /* Scroll the editor screen through the file.
  */
@@ -697,6 +732,12 @@ void editor_process_key() {
 	break;
 	case CTRL_KEY('s'):
 		editor_save();
+	break;
+	case CTRL_KEY('f'):
+		editor_search();
+	break;
+	case CTRL_KEY('k'):
+		editor_delete_row(e.cy);
 	break;
 	case HOME_KEY:
 		e.cx = 0;
