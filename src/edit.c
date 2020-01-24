@@ -6,14 +6,10 @@
  ************************************************************************
  */
 
-#ifdef __linux
-#define _GNU_SOURCE
-#elif __unix >= 1
 #if defined(__FreeBSD__) || defined(__OpenBSD__)
 #define _BSD_SOURCE
 #else
 #define _GNU_SOURCE
-#endif
 #endif
 
 #include <stdio.h>
