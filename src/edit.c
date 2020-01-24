@@ -68,6 +68,7 @@ struct editor_config e;
  */
 void die(const char *msg)
 {
+	write(STDOUT_FILENO, "\x1b[0m", 4);
 	write(STDOUT_FILENO, "\x1b[2J", 4);
 	write(STDOUT_FILENO, "\x1b[H", 3);
 	perror(msg);
@@ -279,6 +280,7 @@ void editor_refresh_screen()
 	struct abuf ab = ABUF_INIT;
 	char buf[32];
 	editor_scroll();
+	ab_append(&ab, "\x1b[30;1;32m", 10);
 	ab_append(&ab, "\x1b[?25l", 6);
 	ab_append(&ab, "\x1b[H", 3);
 	editor_draw_rows(&ab);
@@ -392,6 +394,7 @@ void editor_process_key() {
 
 	switch(c) {
 	case CTRL_KEY('q'):
+		write(STDOUT_FILENO, "\x1b[0m", 4);
 		write(STDOUT_FILENO, "\x1b[2J", 4);
 		write(STDOUT_FILENO, "\x1b[H", 3);
 		exit(0);
