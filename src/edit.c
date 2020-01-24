@@ -42,7 +42,12 @@
 #define PRSED_TAB_STOP 4
 /* Editor key presses required to quit */
 #define PRSED_QUIT_TIMES 3
-/* Control+k macro */
+/* Editor foreground/background colors */
+#define PRSED_FOREGROUND 33
+#define PRSED_BACKGROUND 30
+#define PRSED_DEFAULT_COLOR "\x1b[" STR(PRSED_BACKGROUND) \
+	";" STR(PRSED_FOREGROUND) "m"
+/* Control+key macro */
 #define CTRL_KEY(k) ((k) & 0x1f)
 /* Editor special keys */
 enum {
@@ -496,7 +501,7 @@ void editor_draw_status(struct abuf *ab)
 void editor_draw_message(struct abuf *ab)
 {
 	int len = strlen(e.status);
-	ab_append(ab, "\x1b[30;32m", 8);
+	ab_append(ab, PRSED_DEFAULT_COLOR, strlen(PRSED_DEFAULT_COLOR));
 	ab_append(ab, "\x1b[K", 3);
 	if(len > e.screen_cols) len = e.screen_cols;
 	if(len > 0 && time(NULL)-e.status_time < 5) {
@@ -515,7 +520,7 @@ void editor_refresh_screen()
 	struct abuf ab = ABUF_INIT;
 	char buf[32];
 	editor_scroll();
-	ab_append(&ab, "\x1b[30;32m", 8);
+	ab_append(&ab, PRSED_DEFAULT_COLOR, strlen(PRSED_DEFAULT_COLOR));
 	ab_append(&ab, "\x1b[?25l", 6);
 	ab_append(&ab, "\x1b[H", 3);
 	editor_draw_rows(&ab);
