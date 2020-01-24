@@ -22,7 +22,8 @@ int main(int argc, char **argv)
 	if(argc == 2) {
 		editor_open(argv[1]);
 	}
-	editor_set_status("HELP: Ctrl-S = save | Ctrl-Q = quit | Ctrl-F = find");
+	editor_set_status("HELP: Ctrl-S = save | Ctrl-Q = quit | Ctrl-F = find"
+			" | Ctrl-K = delete row");
 	while(1) {
 		editor_refresh_screen();
 		editor_process_key();
