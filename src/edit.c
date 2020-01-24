@@ -164,9 +164,15 @@ void editor_update_row(erow *row)
 void editor_append_row(char *s, size_t len)
 {
 	int at = e.num_rows;
-	e.row = realloc(e.row, sizeof(erow)*(e.num_rows+1));
+	char *data;
+	erow *row;
+	data = malloc(len+1);
+	if(data == NULL) return;
+	row = realloc(e.row, sizeof(erow)*(e.num_rows+1));
+	if(row == NULL) { free(data); return; }
+	e.row = row;
 	e.row[at].size = len;
-	e.row[at].data = malloc(len+1);
+	e.row[at].data = data;
 	memcpy(e.row[at].data, s, len);
 	e.row[at].data[len] = '\0';
 	e.row[at].rsize = 0;
@@ -205,7 +211,9 @@ struct abuf {
  */
 void ab_append(struct abuf *ab, const char *s, int len)
 {
-	ab->b = realloc(ab->b, ab->len+len);
+	char *new = realloc(ab->b, ab->len+len);
+	if(new == NULL) return;
+	ab->b = new;
 	memcpy(&ab->b[ab->len], s, len);
 	ab->len += len;
 }
