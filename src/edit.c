@@ -28,6 +28,8 @@
 
 /* Editor version */
 #define PRSED_VERSION "1.0"
+/* Editor tab stop */
+#define PRSED_TAB_STOP 4
 /* Control+k macro */
 #define CTRL_KEY(k) ((k) & 0x1f)
 /* Editor special keys */
@@ -45,7 +47,9 @@ enum {
 /* Editor row structure */
 typedef struct erow {
 	int size;
+	int rsize;
 	char *data;
+	char *render;
 } erow;
 /* Editor config structure */
 struct editor_config {
@@ -133,6 +137,27 @@ int get_window_size(int *rows, int *cols)
 		return 0;
 	}
 }
+/* Update the rendered string.
+ */
+void editor_update_row(erow *row)
+{
+	int i, idx = 0, tabs = 0;
+	for(i = 0; i < row->size; i++)
+		if(row->data[i] == '\t') tabs++;
+	free(row->render);
+	row->render = malloc(row->size+tabs*(PRSED_TAB_STOP-1)+1);
+	for(i = 0; i < row->size; i++) {
+		if(row->data[i] == '\t') {
+			row->render[idx++] = ' ';
+			while((idx % PRSED_TAB_STOP) != 0)
+				row->render[idx++] = ' ';
+		} else {
+			row->render[idx++] = row->data[i];
+		}
+	}
+	row->render[idx] = '\0';
+	row->rsize = idx;
+}
 /* Append row to string.
  */
 void editor_append_row(char *s, size_t len)
@@ -143,6 +168,9 @@ void editor_append_row(char *s, size_t len)
 	e.row[at].data = malloc(len+1);
 	memcpy(e.row[at].data, s, len);
 	e.row[at].data[len] = '\0';
+	e.row[at].rsize = 0;
+	e.row[at].render = NULL;
+	editor_update_row(&e.row[at]);
 	e.num_rows++;
 }
 /* Open given 'filename' in editor.
@@ -213,15 +241,16 @@ void editor_draw_rows(struct abuf *ab)
 				ab_append(ab, "~", 1);
 			}
 		} else {
-			int len = e.row[file_row].size-e.col_off;
+			int len = e.row[file_row].rsize-e.col_off;
 			if(len < 0) len = 0;
 			if(len > e.screen_cols) len = e.screen_cols;
-			ab_append(ab, &e.row[file_row].data[e.col_off], len);
+			ab_append(ab, &e.row[file_row].render[e.col_off], len);
 		}
 
 		ab_append(ab, "\x1b[K", 3);
-		if(y < e.screen_rows-1)
+		if(y < e.screen_rows-1) {
 			ab_append(ab, "\r\n", 2);
+		}
 	}
 }
 /* Scroll the editor screen through the file.
