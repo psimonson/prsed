@@ -104,11 +104,9 @@ static void disable_raw()
 void enable_raw()
 {
 	struct termios raw;
-
 	if(tcgetattr(STDIN_FILENO, &e.orig_termios) < 0)
 		die("tcgetattr");
 	atexit(disable_raw);
-
 	/* setup raw mode */
 	raw = e.orig_termios;
 	raw.c_iflag &= ~(BRKINT | ICRNL | INPCK | ISTRIP | IXON);
@@ -126,9 +124,7 @@ int get_cursor_pos(int *rows, int *cols)
 {
 	unsigned int i = 0;
 	char buf[32];
-
 	if(write(STDOUT_FILENO, "\x1b[6n", 4) != 4) return -1;
-
 	printf("\r\n");
 	while(i < sizeof(buf)-1) {
 		if(read(STDIN_FILENO, &buf[i], 1) != 1) break;
@@ -136,7 +132,6 @@ int get_cursor_pos(int *rows, int *cols)
 		i++;
 	}
 	buf[i] = '\0';
-
 	if(buf[0] != '\x1b' || buf[1] != '[') return -1;
 	if(sscanf(&buf[2], "%d;%d", rows, cols) != 2) return -1;
 	return 0;
@@ -146,7 +141,6 @@ int get_cursor_pos(int *rows, int *cols)
 int get_window_size(int *rows, int *cols)
 {
 	struct winsize ws;
-
 	if(ioctl(STDOUT_FILENO, TIOCGWINSZ, &ws) < 0 || ws.ws_col == 0) {
 		if(write(STDOUT_FILENO, "\x1b[999C\x1b[999B", 12) != 12)
 			return -1;
@@ -162,7 +156,6 @@ int get_window_size(int *rows, int *cols)
 void editor_update_row(erow *row)
 {
 	int i, idx = 0, tabs = 0;
-
 	for(i = 0; i < row->size; i++)
 		if(row->data[i] == '\t') tabs++;
 	free(row->render);
@@ -185,9 +178,7 @@ void editor_insert_row(int at, char *s, size_t len)
 {
 	char *data;
 	erow *row;
-
 	if(at < 0 || at > e.num_rows) return;
-
 	data = malloc(len+1);
 	if(data == NULL) return;
 	row = realloc(e.row, sizeof(erow)*(e.num_rows+1));
@@ -209,7 +200,6 @@ void editor_insert_row(int at, char *s, size_t len)
 void editor_row_insert_char(erow *row, int at, int c)
 {
 	char *data;
-
 	if(at < 0 || at > row->size) at = row->size;
 	data = realloc(row->data, row->size+2);
 	if(data == NULL) return;
@@ -257,7 +247,6 @@ void editor_open(const char *filename)
 	size_t line_cap = 0;
 	ssize_t line_len;
 	FILE *fp;
-
 	free(e.filename);
 	e.filename = strdup(filename);
 	fp = fopen(filename, "r");
@@ -278,8 +267,13 @@ void editor_save()
 {
 	char *buf;
 	int len, fd;
-
-	if(e.filename == NULL) return;
+	if(e.filename == NULL) {
+		e.filename = editor_prompt("Save as (ESC to cancel): %s");
+		if(e.filename == NULL) {
+			editor_set_status("Save aborted!");
+			return;
+		}
+	}
 	buf = editor_rows_to_string(&len);
 	if(buf == NULL) return;
 	fd = open(e.filename, O_RDWR | O_CREAT, 0644);
@@ -342,7 +336,6 @@ struct abuf {
 void ab_append(struct abuf *ab, const char *s, int len)
 {
 	char *new = realloc(ab->b, ab->len+len);
-
 	if(new == NULL) return;
 	ab->b = new;
 	memcpy(&ab->b[ab->len], s, len);
@@ -387,7 +380,6 @@ void editor_delete_char()
 {
 	if(e.cy == e.num_rows) return;
 	if(e.cx == 0 && e.cy == 0) return;
-
 	erow *row = &e.row[e.cy];
 	if(e.cx > 0) {
 		editor_row_delete_char(row, e.cx-1);
@@ -404,7 +396,6 @@ void editor_delete_char()
 void editor_draw_rows(struct abuf *ab)
 {
 	int y;
-
 	for(y = 0; y < e.screen_rows; y++) {
 		int file_row = y+e.row_off;
 		if(file_row >= e.num_rows) {
@@ -459,7 +450,6 @@ void editor_scroll()
 	if(e.cy < e.num_rows) {
 		e.rx = editor_row_cx_to_rx(&e.row[e.cy], e.cx);
 	}
-
 	/* vertical scrolling */
 	if(e.cy < e.row_off) {
 		e.row_off = e.cy;
@@ -601,6 +591,39 @@ int editor_read_key()
 	} else {
 		return c;
 	}
+}
+/* Prompt user for input.
+ */
+char *editor_prompt(const char *msg)
+{
+#define MAXBUF 128
+	static char buf[MAXBUF];
+	size_t i = 0;
+	int c;
+	do {
+		editor_set_status(msg, buf);
+		editor_refresh_screen();
+
+		c = editor_read_key();
+		if(c == DEL_KEY || c == CTRL_KEY('h') || c == BACKSPACE) {
+			if(i != 0) buf[--i] = '\0';
+		} else if(c == '\x1b') {
+			editor_set_status("", 0);
+			return NULL;
+		} else if(c == '\r') {
+			if(i != 0) {
+				editor_set_status("", 0);
+				return &buf[0];
+			}
+		} else if(!iscntrl(c) && c < 128) {
+			if(i < MAXBUF-1) {
+				buf[i++] = c;
+				buf[i] = '\0';
+			}
+		}
+	} while(i < MAXBUF-1);
+	return &buf[0];
+#undef MAXBUF
 }
 /* Move the cursor with keys 'a', 'd', 'w', 's'.
  */

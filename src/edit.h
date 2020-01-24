@@ -20,6 +20,8 @@ void editor_open(const char *filename);
 void editor_refresh_screen();
 /* Set status message. */
 void editor_set_status(const char *fmt, ...);
+/* Prompt user for input. */
+char *editor_prompt(const char *msg);
 /* Process input from user. */
 void editor_process_key();
 
