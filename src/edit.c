@@ -756,7 +756,7 @@ void editor_process_key() {
 		editor_insert();
 	break;
 	case CTRL_KEY('k'):
-		if(e.row[e.cy].data != NULL) {
+		if(e.num_rows > 0 && e.row[e.cy].data != NULL) {
 			free(e.cdata);
 			e.cdata = strdup(e.row[e.cy].data);
 			e.csize = strlen(e.cdata);
