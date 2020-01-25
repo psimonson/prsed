@@ -38,10 +38,13 @@
 #define PRSED_TAB_STOP 4
 /* Editor key presses required to quit */
 #define PRSED_QUIT_TIMES 3
+/* Editor foreground color for normal text. */
+#define PRSED_EDITOR_COLOR 33	/* if you want a different color change me */
+#define PRSED_COLOR "\x1b[" STR(PRSED_EDITOR_COLOR) "m"
 /* Control+key macro */
 #define CTRL_KEY(k) ((k) & 0x1f)
 /* Editor special keys */
-enum {
+enum editor_key {
 	BACKSPACE = 127,
 	ARROW_LEFT = 1000,
 	ARROW_RIGHT,
@@ -53,12 +56,17 @@ enum {
 	PAGE_UP,
 	PAGE_DOWN
 };
+enum editor_highlight {
+	HL_NORMAL = 0,
+	HL_NUMBER
+};
 /* Editor row structure */
 typedef struct erow {
 	int size;
 	int rsize;
 	char *data;
 	char *render;
+	unsigned char *hl;
 } erow;
 /* Editor config structure */
 struct editor_config {
@@ -148,6 +156,31 @@ int get_window_size(int *rows, int *cols)
 		return 0;
 	}
 }
+/* Syntax highlighting.
+ */
+void editor_update_syntax(erow *row)
+{
+	unsigned char *hl;
+	int i;
+	hl = realloc(row->hl, row->rsize);
+	if(hl == NULL) return;
+	row->hl = hl;
+	memset(row->hl, HL_NORMAL, row->rsize);
+	for(i = 0; i < row->rsize; i++) {
+		if(isdigit(row->render[i])) {
+			row->hl[i] = HL_NUMBER;
+		}
+	}
+}
+/* Convert syntax to color.
+ */
+int editor_syntax_to_color(int hl)
+{
+	switch(hl) {
+	case HL_NUMBER: return 31;
+	default: return 34;
+	}
+}
 /* Update the rendered string.
  */
 void editor_update_row(erow *row)
@@ -168,6 +201,7 @@ void editor_update_row(erow *row)
 	}
 	row->render[idx] = '\0';
 	row->rsize = idx;
+	editor_update_syntax(row);
 }
 /* Append row to string.
  */
@@ -188,6 +222,7 @@ void editor_insert_row(int at, const char *s, size_t len)
 	e.row[at].data[len] = '\0';
 	e.row[at].rsize = 0;
 	e.row[at].render = NULL;
+	e.row[at].hl = NULL;
 	editor_update_row(&e.row[at]);
 	e.num_rows++;
 	e.dirty = 1;
@@ -453,21 +488,30 @@ void editor_draw_rows(struct abuf *ab)
 				ab_append(ab, "~", 1);
 			}
 		} else {
-			int len = e.row[file_row].rsize-e.col_off;
-			char *c = &e.row[file_row].render[e.col_off];
-			int i;
+			unsigned char *hl = NULL;
+			char *c = NULL;
+			int i, len;
 
+			len = e.row[file_row].rsize-e.col_off;
 			if(len < 0) len = 0;
 			if(len > e.screen_cols) len = e.screen_cols;
+			c = &e.row[file_row].render[e.col_off];
+			hl = &e.row[file_row].hl[e.col_off];
 			for(i = 0; i < len; i++) {
-				if(isdigit(c[i])) {
-					ab_append(ab, "\x1b[35m", 5);
+				if(hl[i] == HL_NORMAL) {
+					ab_append(ab, PRSED_COLOR, strlen(PRSED_COLOR));
 					ab_append(ab, &c[i], 1);
-					ab_append(ab, "\x1b[39m", 5);
 				} else {
+					int color = editor_syntax_to_color(hl[i]);
+					char buf[16];
+					int clen;
+					memset(buf, 0, sizeof(buf));
+					clen = snprintf(buf, sizeof(buf), "\x1b[%dm", color);
+					ab_append(ab, buf, clen);
 					ab_append(ab, &c[i], 1);
 				}
 			}
+			ab_append(ab, PRSED_COLOR, strlen(PRSED_COLOR));
 		}
 
 		ab_append(ab, "\x1b[K", 3);
@@ -556,6 +600,7 @@ void editor_draw_status(struct abuf *ab)
 void editor_draw_message(struct abuf *ab)
 {
 	int len = strlen(e.status);
+	ab_append(ab, PRSED_COLOR, strlen(PRSED_COLOR));
 	ab_append(ab, "\x1b[K", 3);
 	if(len > e.screen_cols) len = e.screen_cols;
 	if(len > 0 && time(NULL)-e.status_time < 5) {
