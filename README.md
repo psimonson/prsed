@@ -16,5 +16,5 @@ Simple text editor designed for Linux/Unix. I will be designing it also for Wind
 
 ### License
 
- - None
+ - MIT License (see LICENSE.md)
 
