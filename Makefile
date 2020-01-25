@@ -30,7 +30,7 @@ mkdirs:
 	@[ ! -d "$(OBJDIR)" ] && mkdir $(OBJDIR) || exit 0
 
 dist: dist-clean
-	cd ..; tar cv $(PRNAME) | xz -9 > $(PRNAME)-$(VERSION).txz
+	cd ..; tar cv --exclude=.git $(PRNAME) | xz -9 > $(PRNAME)-$(VERSION).txz
 
 dist-clean: clean
 	rm -rf bin obj
