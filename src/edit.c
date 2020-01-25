@@ -76,6 +76,8 @@ struct editor_config {
 	int num_rows;
 	erow *row;
 	int dirty;
+	int csize;
+	char *cdata;
 	char *filename;
 	char status[80];
 	time_t status_time;
@@ -175,7 +177,7 @@ void editor_update_row(erow *row)
 }
 /* Append row to string.
  */
-void editor_insert_row(int at, char *s, size_t len)
+void editor_insert_row(int at, const char *s, size_t len)
 {
 	char *data;
 	erow *row;
@@ -331,6 +333,23 @@ void editor_delete_row(int at)
 	memmove(&e.row[at], &e.row[at+1], sizeof(erow)*(e.num_rows-at-1));
 	e.num_rows--;
 	e.dirty = 1;
+}
+/* Editor free last line that was deleted.
+ */
+void editor_delete()
+{
+	if(e.cdata == NULL) return;
+	free(e.cdata);
+	e.cdata = NULL;
+	e.csize = 0;
+}
+/* Editor insert line from buffer.
+ */
+void editor_insert()
+{
+	if(e.cdata == NULL) return;
+	editor_insert_row(e.cy, e.cdata, e.csize);
+	editor_delete();
 }
 /* Append a string to the end of a row.
  */
@@ -724,6 +743,7 @@ void editor_process_key() {
 		write(STDOUT_FILENO, "\x1b[m", 3);
 		write(STDOUT_FILENO, "\x1b[2J", 4);
 		write(STDOUT_FILENO, "\x1b[H", 3);
+		editor_delete();
 		exit(0);
 	break;
 	case CTRL_KEY('s'):
@@ -732,8 +752,16 @@ void editor_process_key() {
 	case CTRL_KEY('f'):
 		editor_search();
 	break;
+	case CTRL_KEY('u'):
+		editor_insert();
+	break;
 	case CTRL_KEY('k'):
-		editor_delete_row(e.cy);
+		if(e.row[e.cy].data != NULL) {
+			free(e.cdata);
+			e.cdata = strdup(e.row[e.cy].data);
+			e.csize = strlen(e.cdata);
+			editor_delete_row(e.cy);
+		}
 	break;
 	case HOME_KEY:
 		e.cx = 0;
@@ -792,6 +820,8 @@ void init_editor()
 	e.num_rows = 0;
 	e.row = NULL;
 	e.dirty = 0;
+	e.csize = 0;
+	e.cdata = NULL;
 	e.filename = NULL;
 	e.status[0] = '\0';
 	e.status_time = 0;
