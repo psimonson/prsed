@@ -848,6 +848,7 @@ void reset_editor()
 	for(i = 0; i < e.num_rows; i++) {
 		editor_free_row(&e.row[i]);
 	}
+	free(e.row);
 	free(e.cdata);
 	free(e.filename);
 	init_editor();
