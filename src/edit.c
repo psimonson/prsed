@@ -685,6 +685,7 @@ char *editor_prompt(const char *msg)
 void editor_move_cursor(int key)
 {
 	erow *row = (e.cy >= e.num_rows) ? NULL : &e.row[e.cy];
+	int row_len;
 
 	switch(key) {
 	case ARROW_LEFT:
@@ -718,8 +719,9 @@ void editor_move_cursor(int key)
 	}
 
 	row = (e.cy >= e.num_rows) ? NULL : &e.row[e.cy];
-	if(row != NULL && e.cx > row->size) {
-		e.cx = row->size;
+	row_len = row ? row->size : 0;
+	if(e.cx > row_len) {
+		e.cx = row_len;
 	}
 }
 /* Process key presses from user.
