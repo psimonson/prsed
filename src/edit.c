@@ -727,6 +727,7 @@ void editor_move_cursor(int key)
 void editor_process_key() {
 	static int quit_times = PRSED_QUIT_TIMES;
 	int c = editor_read_key();
+	void reset_editor(void);
 
 	switch(c) {
 	case '\r':
@@ -756,12 +757,15 @@ void editor_process_key() {
 		editor_insert();
 	break;
 	case CTRL_KEY('k'):
-		if(e.num_rows > 0 && e.row[e.cy].data != NULL) {
+		if(e.num_rows > 0 && e.num_rows > e.cy && e.row[e.cy].data != NULL) {
 			free(e.cdata);
 			e.cdata = strdup(e.row[e.cy].data);
 			e.csize = strlen(e.cdata);
 			editor_delete_row(e.cy);
 		}
+	break;
+	case CTRL_KEY('n'):
+		reset_editor();
 	break;
 	case HOME_KEY:
 		e.cx = 0;
@@ -829,4 +833,16 @@ void init_editor()
 	if(get_window_size(&e.screen_rows, &e.screen_cols) < 0)
 		die("get_window_size");
 	e.screen_rows -= 2;
+}
+/* Reset editor free all data and re-initialize.
+ */
+void reset_editor()
+{
+	int i;
+	for(i = 0; i < e.num_rows; i++) {
+		editor_free_row(&e.row[i]);
+	}
+	free(e.cdata);
+	free(e.filename);
+	init_editor();
 }
