@@ -767,6 +767,12 @@ void editor_process_key() {
 	case CTRL_KEY('n'):
 		reset_editor();
 	break;
+	case CTRL_KEY('o'): {
+		char *filename = editor_prompt("File name (ESC to cancel): %s");
+		if(filename == NULL) break;
+		reset_editor();
+		editor_open(filename);
+	} break;
 	case HOME_KEY:
 		e.cx = 0;
 	break;
