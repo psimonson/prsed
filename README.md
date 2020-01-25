@@ -6,6 +6,7 @@ Simple text editor designed for Linux/Unix. I will be designing it also for Wind
 
  - Ctrl-Q - Exit the editor.
  - Ctrl-N - New file buffer.
+ - Ctrl-O - Open existing file.
  - Ctrl-S - Save file buffer.
  - Ctrl-F - Search text for string.
  - Ctrl-K - Delete current line of text.

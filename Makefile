@@ -10,7 +10,7 @@ PREFIX=usr/local
 SRCDIR=src
 BINDIR=bin
 OBJDIR=obj
-PRNAME=$(basename $(SRCDIR))
+PRNAME=$(TARGET)
 VERSION=0.1
 
 SOURCES=$(wildcard $(SRCDIR)/*.c)
