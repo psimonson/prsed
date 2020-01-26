@@ -366,23 +366,6 @@ void editor_delete_row(int at)
 	e.num_rows--;
 	e.dirty = 1;
 }
-/* Editor free last line that was deleted.
- */
-void editor_delete()
-{
-	if(e.cdata == NULL) return;
-	free(e.cdata);
-	e.cdata = NULL;
-	e.csize = 0;
-}
-/* Editor insert line from buffer.
- */
-void editor_insert()
-{
-	if(e.cdata == NULL) return;
-	editor_insert_row(e.cy, e.cdata, e.csize);
-	editor_delete();
-}
 /* Append a string to the end of a row.
  */
 void editor_row_append_string(erow *row, char *s, size_t len)
@@ -806,13 +789,13 @@ void editor_process_key() {
 		editor_search();
 	break;
 	case CTRL_KEY('u'):
-		editor_insert();
+		if(e.cy >= 0 && e.cy <= e.num_rows)
+			editor_insert_row(e.cy, e.cdata, e.csize);
 	break;
 	case CTRL_KEY('k'):
-		if(e.num_rows > 0 && e.num_rows > e.cy && e.row[e.cy].data != NULL) {
-			free(e.cdata);
+		if(e.cy >= 0 && e.cy < e.num_rows && e.row[e.cy].data) {
 			e.cdata = strdup(e.row[e.cy].data);
-			e.csize = strlen(e.cdata);
+			e.csize = e.row[e.cy].size;
 			editor_delete_row(e.cy);
 		}
 	break;
@@ -901,7 +884,6 @@ void reset_editor()
 		editor_free_row(&e.row[i]);
 	}
 	free(e.row);
-	editor_delete();
 	free(e.filename);
 	init_editor();
 }
