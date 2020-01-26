@@ -92,6 +92,9 @@ struct editor_config e;
  */
 void die(const char *msg)
 {
+	void reset_editor();
+	reset_editor();
+	write(STDOUT_FILENO, "\x1b[m", 3);
 	write(STDOUT_FILENO, "\x1b[2J", 4);
 	write(STDOUT_FILENO, "\x1b[H", 3);
 	perror(msg);
@@ -790,9 +793,10 @@ void editor_process_key() {
 			quit_times--;
 			return;
 		}
+		reset_editor();
+		write(STDOUT_FILENO, "\x1b[m", 3);
 		write(STDOUT_FILENO, "\x1b[2J", 4);
 		write(STDOUT_FILENO, "\x1b[H", 3);
-		editor_delete();
 		exit(0);
 	break;
 	case CTRL_KEY('s'):
@@ -897,7 +901,7 @@ void reset_editor()
 		editor_free_row(&e.row[i]);
 	}
 	free(e.row);
-	free(e.cdata);
+	editor_delete();
 	free(e.filename);
 	init_editor();
 }
