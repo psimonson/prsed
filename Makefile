@@ -1,8 +1,14 @@
 CC=gcc
 CFLAGS=-std=c89 -Wall -Wextra -Wno-unused-parameter
-CFLAGS+=$(shell pkg-config prs --cflags)
-LDFLAGS=$(shell pkg-config prs --libs)
+LDFLAGS=
 TARGET=prsed
+DEBUG=no
+
+ifeq ($(DEBUG),yes)
+CFLAGS+=-g
+else
+CFLAGS+=-O2
+endif
 
 DESTDIR=
 PREFIX=usr/local
