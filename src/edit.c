@@ -579,8 +579,7 @@ void editor_draw_status(struct abuf *ab)
 	len = snprintf(status, sizeof(status), "[%.20s]%s - %d lines",
 	  e.filename ? e.filename : "No Name",
 	  e.dirty ? " (modified)" : "", e.num_rows);
-	rlen = snprintf(rstatus, sizeof(rstatus), "%d/%d",
-		(e.num_rows > 0) ? e.cy+1 : e.cy, e.num_rows);
+	rlen = snprintf(rstatus, sizeof(rstatus), "%d/%d", e.cy+1, e.num_rows);
 	if(len > e.screen_cols) len = e.screen_cols;
 	ab_append(ab, status, len);
 	while(len < e.screen_cols) {
