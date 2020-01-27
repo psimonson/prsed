@@ -93,10 +93,26 @@ struct editor_config {
 };
 /* Editor config definition */
 struct editor_config e;
+/* Editor free resources.
+ */
+void editor_free()
+{
+	void editor_free_row(erow*);
+	void editor_free_copy(ecopy*);
+	int i;
+	for(i = 0; i < e.num_rows; i++)
+		editor_free_row(&e.row[i]);
+	free(e.row);
+	for(i = 0; i < e.num_copy; i++)
+		editor_free_copy(&e.copy[i]);
+	free(e.copy);
+	free(e.filename);
+}
 /* Exit out of the program and report an error.
  */
 void die(const char *msg)
 {
+	editor_free();
 	write(STDOUT_FILENO, "\x1b[m", 3);
 	write(STDOUT_FILENO, "\x1b[2J", 4);
 	write(STDOUT_FILENO, "\x1b[H", 3);
@@ -827,6 +843,7 @@ void editor_process_key() {
 			quit_times--;
 			return;
 		}
+		editor_free();
 		write(STDOUT_FILENO, "\x1b[m", 3);
 		write(STDOUT_FILENO, "\x1b[2J", 4);
 		write(STDOUT_FILENO, "\x1b[H", 3);
@@ -928,15 +945,6 @@ void init_editor()
  */
 void reset_editor()
 {
-	int i;
-	for(i = 0; i < e.num_rows; i++) {
-		editor_free_row(&e.row[i]);
-	}
-	free(e.row);
-	for(i = 0; i < e.num_copy; i++) {
-		editor_free_copy(&e.copy[i]);
-	}
-	free(e.copy);
-	free(e.filename);
+	editor_free();
 	init_editor();
 }
