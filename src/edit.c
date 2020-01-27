@@ -182,15 +182,13 @@ int get_window_size(int *rows, int *cols)
  */
 void editor_update_syntax(erow *row)
 {
-	unsigned char *hl;
 	int i;
-	hl = realloc(row->hl, row->rsize);
-	if(hl == NULL) return;
-	row->hl = hl;
-	memset(row->hl, HL_NORMAL, row->rsize);
+	row->hl = realloc(row->hl, row->rsize);
 	for(i = 0; i < row->rsize; i++) {
 		if(isdigit(row->render[i])) {
 			row->hl[i] = HL_NUMBER;
+		} else {
+			row->hl[i] = HL_NORMAL;
 		}
 	}
 }
@@ -200,7 +198,7 @@ int editor_syntax_to_color(int hl)
 {
 	switch(hl) {
 	case HL_NUMBER: return 31;
-	default: return 34;
+	default: return PRSED_EDITOR_COLOR;
 	}
 }
 /* Update the rendered string.
@@ -243,17 +241,11 @@ void editor_delete_copy(int at)
  */
 void editor_insert_copy(int at, const char *s, size_t len)
 {
-	char *data;
-	ecopy *copy;
 	if(at < 0 || at > e.num_copy) return;
-	data = malloc(len+1);
-	if(data == NULL) return;
-	copy = realloc(e.copy, sizeof(ecopy)*(e.num_copy+1));
-	if(copy == NULL) { if(data != NULL) free(data); return; }
-	e.copy = copy;
+	e.copy = realloc(e.copy, sizeof(ecopy)*(e.num_copy+1));
 	memmove(&e.copy[at+1], &e.copy[at], sizeof(ecopy)*(e.num_copy-at));
+	e.copy[at].data = malloc(len+1);
 	e.copy[at].size = len;
-	e.copy[at].data = data;
 	memcpy(e.copy[at].data, s, len);
 	e.copy[at].data[len] = '\0';
 	e.num_copy++;
@@ -273,17 +265,11 @@ void editor_paste_copy(ecopy *copy)
  */
 void editor_insert_row(int at, const char *s, size_t len)
 {
-	char *data;
-	erow *row;
 	if(at < 0 || at > e.num_rows) return;
-	data = malloc(len+1);
-	if(data == NULL) return;
-	row = realloc(e.row, sizeof(erow)*(e.num_rows+1));
-	if(row == NULL) { free(data); return; }
-	e.row = row;
+	e.row = realloc(e.row, sizeof(erow)*(e.num_rows+1));
 	memmove(&e.row[at+1], &e.row[at], sizeof(erow)*(e.num_rows-at));
 	e.row[at].size = len;
-	e.row[at].data = data;
+	e.row[at].data = malloc(len+1);
 	memcpy(e.row[at].data, s, len);
 	e.row[at].data[len] = '\0';
 	e.row[at].rsize = 0;
@@ -297,11 +283,8 @@ void editor_insert_row(int at, const char *s, size_t len)
  */
 void editor_row_insert_char(erow *row, int at, int c)
 {
-	char *data;
 	if(at < 0 || at > row->size) at = row->size;
-	data = realloc(row->data, row->size+2);
-	if(data == NULL) return;
-	row->data = data;
+	row->data = realloc(row->data, row->size+2);
 	memmove(&row->data[at+1], &row->data[at], row->size-at+1);
 	row->size++;
 	row->data[at] = c;
@@ -437,10 +420,7 @@ void editor_delete_row(int at)
  */
 void editor_row_append_string(erow *row, char *s, size_t len)
 {
-	char *p;
-	p = realloc(row->data, row->size+len+1);
-	if(p == NULL) return;
-	row->data = p;
+	row->data = realloc(row->data, row->size+len+1);
 	memcpy(&row->data[row->size], s, len);
 	row->size += len;
 	row->data[row->size] = '\0';
@@ -458,9 +438,7 @@ struct abuf {
  */
 void ab_append(struct abuf *ab, const char *s, int len)
 {
-	char *new = realloc(ab->b, ab->len+len);
-	if(new == NULL) return;
-	ab->b = new;
+	ab->b = realloc(ab->b, ab->len+len);
 	memcpy(&ab->b[ab->len], s, len);
 	ab->len += len;
 }
@@ -661,7 +639,6 @@ void editor_draw_message(struct abuf *ab)
 			ab_append(ab, " ", 1);
 			len++;
 		}
-		ab_append(ab, "\x1b[m", 3);
 	}
 }
 /* Clear the screen.
