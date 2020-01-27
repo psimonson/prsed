@@ -247,9 +247,11 @@ void editor_insert_copy(int at, const char *s, size_t len)
 void editor_paste_copy(ecopy *copy)
 {
 	void editor_insert_row(int at, const char *s, size_t len);
-	e.num_copy--;
-	editor_insert_row(e.cy, e.copy[e.num_copy].data, e.copy[e.num_copy].size);
-	editor_delete_copy(e.num_copy);
+	if(e.num_copy > 0) {
+		e.num_copy--;
+		editor_insert_row(e.cy, e.copy[e.num_copy].data, e.copy[e.num_copy].size);
+		editor_delete_copy(e.num_copy);
+	}
 }
 /* Append row to string.
  */
@@ -837,11 +839,11 @@ void editor_process_key() {
 		editor_search();
 	break;
 	case CTRL_KEY('u'):
-		if(e.cy >= 0 && e.cy <= e.num_rows)
-			editor_paste_copy(&e.copy[e.num_copy-1]);
+		if(e.cy >= 0 && e.cy < e.num_rows)
+			editor_paste_copy(&e.copy[e.num_copy]);
 	break;
 	case CTRL_KEY('k'):
-		if(e.cy >= 0 && e.cy < e.num_rows && e.row[e.cy].data) {
+		if(e.cy >= 0 && e.cy < e.num_rows) {
 			editor_insert_copy(e.num_copy, e.row[e.cy].data, e.row[e.cy].size);
 			editor_delete_row(e.cy);
 		}
