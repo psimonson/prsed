@@ -58,7 +58,8 @@ enum editor_key {
 };
 enum editor_highlight {
 	HL_NORMAL = 0,
-	HL_NUMBER
+	HL_NUMBER,
+	HL_MATCH
 };
 /* Editor row structure */
 typedef struct erow {
@@ -178,18 +179,31 @@ int get_window_size(int *rows, int *cols)
 		return 0;
 	}
 }
+/* Check if the given character is a seperator.
+ */
+int is_seperator(int c)
+{
+	return isspace(c) || c == '\0' || strchr(",.()+-/*=~%<>[];", c) != NULL;
+}
 /* Syntax highlighting.
  */
 void editor_update_syntax(erow *row)
 {
-	int i;
+	int i, prev_sep = 1;
 	row->hl = realloc(row->hl, row->rsize);
+	memset(row->hl, HL_NORMAL, row->rsize);
 	for(i = 0; i < row->rsize; i++) {
-		if(isdigit(row->render[i])) {
+		char c = row->render[i];
+		unsigned char prev_hl = (i > 0) ? row->hl[i-1] : HL_NORMAL;
+
+		if((isdigit(c) && (prev_sep || prev_hl == HL_NUMBER)) ||
+			(c == '.' && prev_hl == HL_NUMBER)) {
 			row->hl[i] = HL_NUMBER;
-		} else {
-			row->hl[i] = HL_NORMAL;
+			prev_sep = 0;
+			continue;
 		}
+
+		prev_sep = is_seperator(c);
 	}
 }
 /* Convert syntax to color.
@@ -198,6 +212,7 @@ int editor_syntax_to_color(int hl)
 {
 	switch(hl) {
 	case HL_NUMBER: return 31;
+	case HL_MATCH: return 34;
 	default: return PRSED_EDITOR_COLOR;
 	}
 }
@@ -381,6 +396,15 @@ void editor_search_callback(const char *query, int key)
 	int editor_row_rx_to_cx(erow *, int);
 	static int last_match = -1;
 	static int direction = -1;
+	static int saved_hl_line;
+	static char *saved_hl = NULL;
+
+	/* restore original syntax highlighting */
+	if(saved_hl != NULL) {
+		memcpy(e.row[saved_hl_line].hl, saved_hl, e.row[saved_hl_line].rsize);
+		free(saved_hl);
+		saved_hl = NULL;
+	}
 
 	/* controlling search */
 	if(key == '\r' || key == '\x1b') {
@@ -409,10 +433,16 @@ void editor_search_callback(const char *query, int key)
 				erow *row = &e.row[current];
 				char *match = strstr(row->render, query);
 				if(match != NULL) {
+					last_match = current;
 					e.cy = current;
 					e.cx = editor_row_rx_to_cx(row, match-row->render);
 					e.row_off = e.num_rows;
-					last_match = current;
+					/* save original syntax highlighting */
+					saved_hl_line = current;
+					saved_hl = malloc(row->rsize);
+					memcpy(saved_hl, row->hl, row->rsize);
+					/* highlight search result */
+					memset(&row->hl[match-row->render], HL_MATCH, strlen(query));
 					break;
 				}
 			}
@@ -562,24 +592,31 @@ void editor_draw_rows(struct abuf *ab)
 		} else {
 			unsigned char *hl = NULL;
 			char *c = NULL;
-			int i, len;
+			int i, len, cur_col;
 
 			len = e.row[file_row].rsize-e.col_off;
 			if(len < 0) len = 0;
 			if(len > e.screen_cols) len = e.screen_cols;
 			c = &e.row[file_row].render[e.col_off];
 			hl = &e.row[file_row].hl[e.col_off];
+			cur_col = -1;
 			for(i = 0; i < len; i++) {
 				if(hl[i] == HL_NORMAL) {
-					ab_append(ab, PRSED_COLOR, strlen(PRSED_COLOR));
+					if(cur_col != -1) {
+						ab_append(ab, PRSED_COLOR, strlen(PRSED_COLOR));
+						cur_col = -1;
+					}
 					ab_append(ab, &c[i], 1);
 				} else {
 					int color = editor_syntax_to_color(hl[i]);
-					char buf[16];
-					int clen;
-					memset(buf, 0, sizeof(buf));
-					clen = snprintf(buf, sizeof(buf), "\x1b[%dm", color);
-					ab_append(ab, buf, clen);
+					if(color != cur_col) {
+						char buf[16];
+						int clen;
+						cur_col = color;
+						memset(buf, 0, sizeof(buf));
+						clen = snprintf(buf, sizeof(buf), "\x1b[%dm", color);
+						ab_append(ab, buf, clen);
+					}
 					ab_append(ab, &c[i], 1);
 				}
 			}
