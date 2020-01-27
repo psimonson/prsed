@@ -221,7 +221,7 @@ void editor_delete_copy(int at)
 {
 	if(at < 0 || at >= e.num_copy) return;
 	editor_free_copy(&e.copy[at]);
-	memmove(&e.row[at], &e.row[at+1], sizeof(erow)*(e.num_rows-at-1));
+	memmove(&e.copy[at], &e.copy[at+1], sizeof(ecopy)*(e.num_copy-at-1));
 }
 /* Append to copy buffer.
  */
