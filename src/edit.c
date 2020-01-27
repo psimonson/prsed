@@ -68,6 +68,11 @@ typedef struct erow {
 	char *render;
 	unsigned char *hl;
 } erow;
+/* Editor copy structure */
+typedef struct ecopy {
+	int size;
+	char *data;
+} ecopy;
 /* Editor config structure */
 struct editor_config {
 	int cx, cy;
@@ -77,10 +82,10 @@ struct editor_config {
 	int screen_rows;
 	int screen_cols;
 	int num_rows;
+	int num_copy;
 	erow *row;
+	ecopy *copy;
 	int dirty;
-	int csize;
-	char *cdata;
 	char *filename;
 	char status[80];
 	time_t status_time;
@@ -92,8 +97,6 @@ struct editor_config e;
  */
 void die(const char *msg)
 {
-	void reset_editor();
-	reset_editor();
 	write(STDOUT_FILENO, "\x1b[m", 3);
 	write(STDOUT_FILENO, "\x1b[2J", 4);
 	write(STDOUT_FILENO, "\x1b[H", 3);
@@ -205,6 +208,48 @@ void editor_update_row(erow *row)
 	row->render[idx] = '\0';
 	row->rsize = idx;
 	editor_update_syntax(row);
+}
+/* Free copy buffer element.
+ */
+void editor_free_copy(ecopy *copy)
+{
+	free(copy->data);
+}
+/* Delete copy buffer element.
+ */
+void editor_delete_copy(int at)
+{
+	if(at < 0 || at >= e.num_copy) return;
+	editor_free_copy(&e.copy[at]);
+	memmove(&e.row[at], &e.row[at+1], sizeof(erow)*(e.num_rows-at-1));
+}
+/* Append to copy buffer.
+ */
+void editor_insert_copy(int at, const char *s, size_t len)
+{
+	char *data;
+	ecopy *copy;
+	if(at < 0 || at > e.num_copy) return;
+	data = malloc(len+1);
+	if(data == NULL) return;
+	copy = realloc(e.copy, sizeof(ecopy)*(e.num_copy+1));
+	if(copy == NULL) { if(data != NULL) free(data); return; }
+	e.copy = copy;
+	memmove(&e.copy[at+1], &e.copy[at], sizeof(ecopy)*(e.num_copy-at));
+	e.copy[at].size = len;
+	e.copy[at].data = data;
+	memcpy(e.copy[at].data, s, len);
+	e.copy[at].data[len] = '\0';
+	e.num_copy++;
+}
+/* Paste from copy buffer.
+ */
+void editor_paste_copy(ecopy *copy)
+{
+	void editor_insert_row(int at, const char *s, size_t len);
+	e.num_copy--;
+	editor_insert_row(e.cy, e.copy[e.num_copy].data, e.copy[e.num_copy].size);
+	editor_delete_copy(e.num_copy);
 }
 /* Append row to string.
  */
@@ -334,7 +379,10 @@ void editor_search()
 {
 	extern int editor_row_rx_to_cx(erow *row, int rx);
 	char *query = editor_prompt("Search (ESC to cancel): %s");
-	if(query == NULL) return;
+	if(query == NULL) {
+		editor_set_status("Search aborted!");
+		return;
+	}
 	{
 		int i;
 		for(i = 0; i < e.num_rows; i++) {
@@ -355,6 +403,7 @@ void editor_free_row(erow *row)
 {
 	free(row->render);
 	free(row->data);
+	free(row->hl);
 }
 /* Delete row from buffer.
  */
@@ -776,7 +825,6 @@ void editor_process_key() {
 			quit_times--;
 			return;
 		}
-		reset_editor();
 		write(STDOUT_FILENO, "\x1b[m", 3);
 		write(STDOUT_FILENO, "\x1b[2J", 4);
 		write(STDOUT_FILENO, "\x1b[H", 3);
@@ -790,12 +838,11 @@ void editor_process_key() {
 	break;
 	case CTRL_KEY('u'):
 		if(e.cy >= 0 && e.cy <= e.num_rows)
-			editor_insert_row(e.cy, e.cdata, e.csize);
+			editor_paste_copy(&e.copy[e.num_copy-1]);
 	break;
 	case CTRL_KEY('k'):
 		if(e.cy >= 0 && e.cy < e.num_rows && e.row[e.cy].data) {
-			e.cdata = strdup(e.row[e.cy].data);
-			e.csize = e.row[e.cy].size;
+			editor_insert_copy(e.num_copy, e.row[e.cy].data, e.row[e.cy].size);
 			editor_delete_row(e.cy);
 		}
 	break;
@@ -863,10 +910,10 @@ void init_editor()
 	e.row_off = 0;
 	e.col_off = 0;
 	e.num_rows = 0;
+	e.num_copy = 0;
 	e.row = NULL;
+	e.copy = NULL;
 	e.dirty = 0;
-	e.csize = 0;
-	e.cdata = NULL;
 	e.filename = NULL;
 	e.status[0] = '\0';
 	e.status_time = 0;
@@ -884,6 +931,10 @@ void reset_editor()
 		editor_free_row(&e.row[i]);
 	}
 	free(e.row);
+	for(i = 0; i < e.num_copy; i++) {
+		editor_free_copy(&e.copy[i]);
+	}
+	free(e.copy);
 	free(e.filename);
 	init_editor();
 }
