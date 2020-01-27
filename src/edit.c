@@ -349,7 +349,7 @@ void editor_save()
 	char *buf;
 	int len, fd;
 	if(e.filename == NULL) {
-		e.filename = editor_prompt("Save as (ESC to cancel): %s");
+		e.filename = editor_prompt("Save as (ESC to cancel): %s", NULL);
 		if(e.filename == NULL) {
 			editor_set_status("Save aborted!");
 			return;
@@ -374,28 +374,69 @@ void editor_save()
 	free(buf);
 	editor_set_status("Can't save! I/O error: %s", strerror(errno));
 }
+/* Callback for searching in the editor.
+ */
+void editor_search_callback(const char *query, int key)
+{
+	int editor_row_rx_to_cx(erow *, int);
+	static int last_match = -1;
+	static int direction = -1;
+
+	/* controlling search */
+	if(key == '\r' || key == '\x1b') {
+		last_match = -1;
+		direction = 1;
+		return;
+	} else if(key == ARROW_DOWN) {
+		direction = 1;
+	} else if(key == ARROW_UP) {
+		direction = -1;
+	} else {
+		last_match = -1;
+		direction = 1;
+	}
+
+	/* search for something */
+	if(last_match == -1) direction = 1;
+	{
+		int current = last_match;
+		int i;
+		for(i = 0; i < e.num_rows; i++) {
+			current += direction;
+			if(current == -1) current = e.num_rows-1;
+			else if(current == e.num_rows) current = 0;
+			{
+				erow *row = &e.row[current];
+				char *match = strstr(row->render, query);
+				if(match != NULL) {
+					e.cy = current;
+					e.cx = editor_row_rx_to_cx(row, match-row->render);
+					e.row_off = e.num_rows;
+					last_match = current;
+					break;
+				}
+			}
+		}
+	}
+}
 /* Search for string in current text.
  */
 void editor_search()
 {
 	extern int editor_row_rx_to_cx(erow *row, int rx);
-	char *query = editor_prompt("Search (ESC to cancel): %s");
+	int saved_cx = e.cx;
+	int saved_cy = e.cy;
+	int saved_col_off = e.col_off;
+	int saved_row_off = e.row_off;
+	char *query = editor_prompt("Search (Use ESC/Arrows/Enter): %s",
+		editor_search_callback);
 	if(query == NULL) {
 		editor_set_status("Search aborted!");
+		e.cx = saved_cx;
+		e.cy = saved_cy;
+		e.col_off = saved_col_off;
+		e.row_off = saved_row_off;
 		return;
-	}
-	{
-		int i;
-		for(i = 0; i < e.num_rows; i++) {
-			erow *row = &e.row[i];
-			char *match = strstr(row->render, query);
-			if(match != NULL) {
-				e.cy = i;
-				e.cx = editor_row_rx_to_cx(row, match-row->render);
-				e.row_off = e.num_rows;
-				break;
-			}
-		}
 	}
 }
 /* Free row after deletion.
@@ -726,7 +767,7 @@ int editor_read_key()
 }
 /* Prompt user for input.
  */
-char *editor_prompt(const char *msg)
+char *editor_prompt(const char *msg, void (*callback)(const char *, int))
 {
 #define MAXBUF 128
 	static char buf[MAXBUF];
@@ -741,10 +782,12 @@ char *editor_prompt(const char *msg)
 			if(i != 0) buf[--i] = '\0';
 		} else if(c == '\x1b') {
 			editor_set_status("", 0);
+			if(callback != NULL) callback(buf, c);
 			return NULL;
 		} else if(c == '\r') {
 			if(i != 0) {
 				editor_set_status("", 0);
+				if(callback != NULL) callback(buf, c);
 				return &buf[0];
 			}
 		} else if(!iscntrl(c) && c < 128) {
@@ -753,6 +796,8 @@ char *editor_prompt(const char *msg)
 				buf[i] = '\0';
 			}
 		}
+
+		if(callback != NULL) callback(buf, c);
 	} while(i < MAXBUF-1);
 	return &buf[0];
 #undef MAXBUF
@@ -846,7 +891,7 @@ void editor_process_key() {
 		reset_editor();
 	break;
 	case CTRL_KEY('o'): {
-		char *filename = editor_prompt("File name (ESC to cancel): %s");
+		char *filename = editor_prompt("File name (ESC to cancel): %s", NULL);
 		if(filename == NULL) break;
 		reset_editor();
 		editor_open(filename);

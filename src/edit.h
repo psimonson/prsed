@@ -21,7 +21,7 @@ void editor_refresh_screen();
 /* Set status message. */
 void editor_set_status(const char *fmt, ...);
 /* Prompt user for input. */
-char *editor_prompt(const char *msg);
+char *editor_prompt(const char *msg, void (*callback)(const char *, int));
 /* Process input from user. */
 void editor_process_key();
 
