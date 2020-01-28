@@ -191,7 +191,6 @@ void editor_update_syntax(erow *row)
 {
 	int i, prev_sep = 1;
 	row->hl = realloc(row->hl, row->rsize);
-	memset(row->hl, HL_NORMAL, row->rsize);
 	for(i = 0; i < row->rsize; i++) {
 		char c = row->render[i];
 		unsigned char prev_hl = (i > 0) ? row->hl[i-1] : HL_NORMAL;
@@ -201,6 +200,8 @@ void editor_update_syntax(erow *row)
 			row->hl[i] = HL_NUMBER;
 			prev_sep = 0;
 			continue;
+		} else {
+			row->hl[i] = HL_NORMAL;
 		}
 
 		prev_sep = is_seperator(c);
@@ -620,9 +621,9 @@ void editor_draw_rows(struct abuf *ab)
 					ab_append(ab, &c[i], 1);
 				}
 			}
+			ab_append(ab, PRSED_COLOR, strlen(PRSED_COLOR));
 		}
 
-		ab_append(ab, PRSED_COLOR, strlen(PRSED_COLOR));
 		ab_append(ab, "\x1b[K", 3);
 		ab_append(ab, "\r\n", 2);
 	}
@@ -726,6 +727,7 @@ void editor_refresh_screen()
 	struct abuf ab = ABUF_INIT;
 	char buf[32];
 	editor_scroll();
+	ab_append(&ab, PRSED_COLOR, strlen(PRSED_COLOR));
 	ab_append(&ab, "\x1b[?25l", 6);
 	ab_append(&ab, "\x1b[H", 3);
 	editor_draw_rows(&ab);
