@@ -107,7 +107,6 @@ void editor_free()
 	for(i = 0; i < e.num_copy; i++)
 		editor_free_copy(&e.copy[i]);
 	free(e.copy);
-	free(e.filename);
 }
 /* Exit out of the program and report an error.
  */
