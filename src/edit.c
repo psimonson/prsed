@@ -339,12 +339,18 @@ char *editor_rows_to_string(int *buflen)
  */
 void editor_open(const char *filename)
 {
+#undef MAX_PATH
+#define MAX_PATH 260
+	static char fname[MAX_PATH];
 	char *line = NULL;
 	size_t line_cap = 0;
 	ssize_t line_len;
+	int length = 0;
 	FILE *fp;
-	free(e.filename);
-	e.filename = strdup(filename);
+	length = strlen(filename);
+	memcpy(fname, filename, length);
+	fname[length] = '\0';
+	e.filename = &fname[0];
 	fp = fopen(filename, "r");
 	if(fp == NULL) die("editor_open()");
 	while((line_len = getline(&line, &line_cap, fp)) > 0) {
@@ -356,6 +362,7 @@ void editor_open(const char *filename)
 	free(line);
 	fclose(fp);
 	e.dirty = 0;
+#undef MAX_PATH
 }
 /* Save text file to disk.
  */
