@@ -900,7 +900,7 @@ void editor_move_cursor(int key)
 	}
 
 	row = (e.cy >= e.num_rows) ? NULL : &e.row[e.cy];
-	row_len = row ? row->rsize : 0;
+	row_len = row ? row->size : 0;
 	if(e.cx > row_len) {
 		e.cx = row_len;
 	}
