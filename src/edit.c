@@ -112,6 +112,8 @@ void editor_free()
  */
 void die(const char *msg)
 {
+	void disable_raw(void);
+	disable_raw();
 	editor_free();
 	write(STDOUT_FILENO, "\x1b[m", 3);
 	write(STDOUT_FILENO, "\x1b[2J", 4);
@@ -121,7 +123,7 @@ void die(const char *msg)
 }
 /* Disable raw mode.
  */
-static void disable_raw()
+void disable_raw()
 {
 	if(tcsetattr(STDIN_FILENO, TCSAFLUSH, &e.orig_termios) < 0)
 		die("tcsetattr");
@@ -265,15 +267,27 @@ void editor_insert_copy(int at, const char *s, size_t len)
 	e.copy[at].data[len] = '\0';
 	e.num_copy++;
 }
-/* Paste from copy buffer.
+/* Undo from copy buffer.
  */
-void editor_paste_copy(ecopy *copy)
+void editor_undo_copy(void)
 {
 	void editor_insert_row(int at, const char *s, size_t len);
 	if(e.num_copy > 0) {
 		e.num_copy--;
 		editor_insert_row(e.cy, e.copy[e.num_copy].data, e.copy[e.num_copy].size);
 		editor_delete_copy(e.num_copy);
+	}
+}
+/* Paste from copy buffer.
+ */
+void editor_paste_copy(void)
+{
+	void editor_insert_row(int at, const char *s, size_t len);
+	if(e.num_copy > 0) {
+		int i;
+
+		for(i = e.num_copy-1; i >= 0; i--)
+			editor_insert_row(e.cy, e.copy[i].data, e.copy[i].size);
 	}
 }
 /* Append row to string.
@@ -886,7 +900,7 @@ void editor_move_cursor(int key)
 	}
 
 	row = (e.cy >= e.num_rows) ? NULL : &e.row[e.cy];
-	row_len = row ? row->size : 0;
+	row_len = row ? row->rsize : 0;
 	if(e.cx > row_len) {
 		e.cx = row_len;
 	}
@@ -899,6 +913,8 @@ void editor_process_key() {
 	void reset_editor(void);
 
 	switch(c) {
+	case CTRL_KEY('w'):
+	break;
 	case '\r':
 		editor_insert_line();
 	break;
@@ -910,6 +926,7 @@ void editor_process_key() {
 			quit_times--;
 			return;
 		}
+		disable_raw();
 		editor_free();
 		write(STDOUT_FILENO, "\x1b[m", 3);
 		write(STDOUT_FILENO, "\x1b[2J", 4);
@@ -922,9 +939,13 @@ void editor_process_key() {
 	case CTRL_KEY('f'):
 		editor_search();
 	break;
+	case CTRL_KEY('p'):
+		if(e.cy >= 0 && e.cy <= e.num_rows)
+			editor_paste_copy();
+	break;
 	case CTRL_KEY('u'):
-		if(e.cy >= 0 && e.cy < e.num_rows)
-			editor_paste_copy(&e.copy[e.num_copy]);
+		if(e.cy >= 0 && e.cy <= e.num_rows)
+			editor_undo_copy();
 	break;
 	case CTRL_KEY('k'):
 		if(e.cy >= 0 && e.cy < e.num_rows) {

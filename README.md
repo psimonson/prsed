@@ -10,7 +10,8 @@ Simple text editor designed for Linux/Unix. I will be designing it also for Wind
  - Ctrl-S - Save file buffer.
  - Ctrl-F - Search text for string.
  - Ctrl-K - Delete current line of text.
- - Ctrl-U - Undo last deleted line of text.
+ - Ctrl-U - Undo last deleted line of text (removes line from copy buffer).
+ - Ctrl-P - Paste entire copy buffer.
 
 ### Developer
 
