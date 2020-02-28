@@ -94,9 +94,21 @@ struct editor_config {
 };
 /* Editor config definition */
 struct editor_config e;
+/* Copy buffer delete.
+ */
+void copy_free(void)
+{
+	void editor_free_copy(ecopy*);
+	int i;
+	for(i = 0; i < e.num_copy; i++)
+		editor_free_copy(&e.copy[i]);
+	free(e.copy);
+	e.num_copy = 0;
+	e.copy = NULL;
+}
 /* Editor free resources.
  */
-void editor_free()
+void editor_free(void)
 {
 	void editor_free_row(erow*);
 	void editor_free_copy(ecopy*);
@@ -938,6 +950,9 @@ void editor_process_key() {
 	break;
 	case CTRL_KEY('f'):
 		editor_search();
+	break;
+	case CTRL_KEY('e'):
+		copy_free();
 	break;
 	case CTRL_KEY('p'):
 		if(e.cy >= 0 && e.cy <= e.num_rows)
